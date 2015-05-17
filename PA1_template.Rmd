@@ -1,0 +1,175 @@
+Analysis of 'Step' Data
+==================================
+
+## Introduction
+
+This document provides an analysis of 'Step' data submitted by an anonymous individual who collected 2 months worth of data, from a device that counted steps in 5 minute intervals.
+
+A copy of the original dataset is available [here](
+https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip).
+
+## Information about the data 
+
+The data is organized simply as "steps,date,interval", where:
+
+* **steps** = number steps taken in a 5 minute interval
+* **date** = date of collection
+* **interval** = indicates the interval of the day by counting collective minutes after midnight
+
+### Load the data
+
+```{r loaddata}
+stepdata <- read.csv("activity.csv", header = TRUE)
+str(stepdata)
+```
+
+
+### Total steps taken
+
+First, we would like to look at a histogram showing the total number steps taken:
+
+```{r dailysum}
+# count steps
+dailysum <- tapply(stepdata$steps, stepdata$date, FUN=sum, na.rm=TRUE)
+```
+```{r histdailysum,echo=FALSE}
+hist(dailysum, breaks="FD", xlab="Total Step Count", main="Frequency of Total Step Count")
+```
+
+
+### Mean and Median
+
+Looking further at the data, the mean and median of total steps taken per day are:
+
+```{r meanmedian}
+values <- unname(dailysum)
+mean_ds <- mean(sort(values))
+med_ds <- median(sort(values))
+```
+```{r showmean}
+# mean
+mean_ds
+
+#median
+med_ds
+```
+
+
+### Time Series of steps taken by time interval
+
+The number of steps by time interval can also be looked at:
+
+```{r timeseries}
+ts <- aggregate(stepdata$steps, list(stepdata$interval), mean, na.rm=TRUE)
+names(ts) <- c("interval","mean")
+```
+```{r plottimeseries, echo=FALSE}
+plot(ts, type="l", main="Average Steps by Time Interval", xlab="Time Interval", ylab="Step Count")
+```
+
+
+### Interval with highest average step count
+
+Calculating the interval with the highest average steps:
+
+```{r maxtimeseries}
+max(ts$mean)
+maxinterval <- ts[which(ts$mean == max(ts$mean)),1]
+maxinterval
+```
+
+
+### Re-analyze the Data, accounting for 'NA'
+
+Re-calculate the above analysis, making sure all 'NA's have been accounted for.  Where an 'NA' is encountered, we will replace the NA with the mean of the interval time series.
+
+Summary of NA values:
+```{r countna}
+colSums(is.na(stepdata))
+```
+
+
+Adjust the step data, to replace all NA values with the mean from timeseries calculation:
+
+```{r indexna}
+
+adjusteddata <- stepdata
+
+for(i in 1:length(adjusteddata[,1])){
+
+    if (is.na(adjusteddata$steps[i])) {
+        inter <- adjusteddata$interval[i]
+        newmean <- ts$mean[ts$interval == inter]
+        adjusteddata$steps[i] <- newmean
+    }
+}
+
+head(adjusteddata)
+```
+
+
+### Total steps taken - Adjusted
+
+Recalculate total number steps taken:
+
+```{r adjusteddailysum}
+# count steps
+adjusteddailysum <- tapply(adjusteddata$steps, adjusteddata$date, FUN=sum)
+```
+```{r plotadjusteddailysum, echo=FALSE}
+hist(adjusteddailysum, breaks="FD", xlab="Total Step Count", main="Frequency of Total Step Count")
+```
+
+
+### Mean and Median - Adjusted
+
+Adjusted mean and median of total steps taken per day are:
+
+```{r adjustedmeanmedian}
+adjvalues <- unname(adjusteddailysum)
+
+adj_mean_ds <- mean(adjvalues)
+adj_med_ds <- median(adjvalues)
+```
+
+```{r showadjmean}
+# adjusted mean
+adj_mean_ds
+
+# adjusted median
+adj_med_ds
+```
+
+
+### Analysis of Weekday vs. Weekend Activity
+
+
+```{r addweekdayfactor}
+dayvector <- vector(length=length(adjusteddata$date))
+
+for(i in 1:length(adjusteddata[,1])){
+
+    dayvector[i] <- 
+        
+        ifelse( weekdays(as.POSIXlt(stepdata$date[i])) == "Sunday", "Weekend", 
+
+            ifelse( weekdays(as.POSIXlt(stepdata$date[i])) == "Saturday", "Weekend", "Weekday")
+        )
+}
+
+adjusteddata$day <- dayvector
+
+str(adjusteddata)
+    
+```
+
+
+### Comparing Weekday vs. Weekend Activity
+
+```{r panelplot,echo=FALSE}
+par(mfrow = c(1,2))
+plot(steps ~ interval, data=subset(adjusteddata, adjusteddata$day == "Weekday"), main="Weekdays", type="l")
+plot(steps ~ interval, data=subset(adjusteddata, adjusteddata$day == "Weekend"), main="Weekends", type="l")
+```
+
+
